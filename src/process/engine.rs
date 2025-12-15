@@ -68,6 +68,7 @@ pub struct UsiEngineHandler {
     process: Child,
     reader: Option<EngineCommandReader<BufReader<ChildStdout>>>,
     writer: GuiCommandWriter<ChildStdin>,
+    handshake_started: bool,
 }
 
 impl Drop for UsiEngineHandler {
@@ -94,7 +95,41 @@ impl UsiEngineHandler {
             process,
             reader: Some(EngineCommandReader::new(BufReader::new(stdout))),
             writer: GuiCommandWriter::new(stdin),
+            handshake_started: false,
         })
+    }
+
+    /// Sends a command to the engine BEFORE the USI handshake.
+    ///
+    /// This is useful for engines like Fairy-Stockfish that require
+    /// configuration before the `usi` command (e.g., `Protocol`, `UCI_Variant`).
+    ///
+    /// Returns `Error::IllegalOperation` if called after `get_info()`.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use usi::{GuiCommand, UsiEngineHandler};
+    ///
+    /// let mut handler = UsiEngineHandler::spawn("/path/to/fairy-stockfish", ".").unwrap();
+    ///
+    /// // Configure engine BEFORE handshake
+    /// handler.send_command_before_handshake(&GuiCommand::SetOption(
+    ///     "Protocol".to_string(),
+    ///     Some("usi".to_string())
+    /// )).unwrap();
+    /// handler.send_command_before_handshake(&GuiCommand::SetOption(
+    ///     "UCI_Variant".to_string(),
+    ///     Some("shogi".to_string())
+    /// )).unwrap();
+    ///
+    /// // Now proceed with normal handshake
+    /// let info = handler.get_info().unwrap();
+    /// ```
+    pub fn send_command_before_handshake(&mut self, command: &GuiCommand) -> Result<(), Error> {
+        if self.handshake_started {
+            return Err(Error::IllegalOperation);
+        }
+        self.writer.send(command)
     }
 
     /// Request metadata such as a name and available options.
@@ -106,6 +141,8 @@ impl UsiEngineHandler {
             Some(r) => Ok(r),
             None => Err(Error::IllegalOperation),
         }?;
+
+        self.handshake_started = true;
 
         let mut info = EngineInfo::default();
         self.writer.send(&GuiCommand::Usi)?;

@@ -76,6 +76,33 @@ handler.listen(move |output| -> Result<(), Error> {
 handler.send_command(&GuiCommand::Usi).unwrap();
 ```
 
+### Pre-Handshake Configuration
+
+Some engines (like Fairy-Stockfish) require configuration before the USI handshake. Use `send_command_before_handshake()` for this:
+
+```rust
+use usi::{GuiCommand, UsiEngineHandler};
+
+let mut handler = UsiEngineHandler::spawn("/path/to/fairy-stockfish", ".").unwrap();
+
+// Configure before handshake (required for Fairy-Stockfish)
+handler.send_command_before_handshake(&GuiCommand::SetOption(
+    "Protocol".to_string(),
+    Some("usi".to_string())
+)).unwrap();
+handler.send_command_before_handshake(&GuiCommand::SetOption(
+    "UCI_Variant".to_string(),
+    Some("shogi".to_string())
+)).unwrap();
+
+// Now proceed with normal handshake
+let info = handler.get_info().unwrap();
+```
+
+## Acknowledgements
+
+This library is a fork of [nozaq/usi-rs](https://github.com/nozaq/usi-rs). Thanks to nozaq for the original implementation.
+
 ## License
 
 `usi-rs` is licensed under the MIT license. Please read the [LICENSE](LICENSE) file in this repository for more information.
