@@ -148,36 +148,45 @@ impl UsiEngineHandler {
         self.writer.send(&GuiCommand::Usi)?;
 
         loop {
-            let output = reader.next_command()?;
-            match output.response() {
-                Some(EngineCommand::Id(IdParams::Name(name))) => {
-                    info.name = name.to_string();
+            match reader.next_command() {
+                Ok(output) => {
+                    match output.response() {
+                        Some(EngineCommand::Id(IdParams::Name(name))) => {
+                            info.name = name.to_string();
+                        }
+                        Some(EngineCommand::Option(OptionParams {
+                            ref name,
+                            ref value,
+                        })) => {
+                            info.options.insert(
+                                name.to_string(),
+                                match value {
+                                    OptionKind::Check { default: Some(f) } => {
+                                        if *f { "true" } else { "false" }.to_string()
+                                    }
+                                    OptionKind::Spin {
+                                        default: Some(n), ..
+                                    } => n.to_string(),
+                                    OptionKind::Combo {
+                                        default: Some(s), ..
+                                    } => s.to_string(),
+                                    OptionKind::Button { default: Some(s) } => s.to_string(),
+                                    OptionKind::String { default: Some(s) } => s.to_string(),
+                                    OptionKind::Filename { default: Some(s) } => s.to_string(),
+                                    _ => String::new(),
+                                },
+                            );
+                        }
+                        Some(EngineCommand::UsiOk) => break,
+                        _ => {}
+                    }
                 }
-                Some(EngineCommand::Option(OptionParams {
-                    ref name,
-                    ref value,
-                })) => {
-                    info.options.insert(
-                        name.to_string(),
-                        match value {
-                            OptionKind::Check { default: Some(f) } => {
-                                if *f { "true" } else { "false" }.to_string()
-                            }
-                            OptionKind::Spin {
-                                default: Some(n), ..
-                            } => n.to_string(),
-                            OptionKind::Combo {
-                                default: Some(s), ..
-                            } => s.to_string(),
-                            OptionKind::Button { default: Some(s) } => s.to_string(),
-                            OptionKind::String { default: Some(s) } => s.to_string(),
-                            OptionKind::Filename { default: Some(s) } => s.to_string(),
-                            _ => String::new(),
-                        },
-                    );
+                Err(Error::IllegalSyntax) => {
+                    // Ignore lines that don't parse as valid USI commands
+                    // (e.g., UCI-style output from Fairy-Stockfish)
+                    continue;
                 }
-                Some(EngineCommand::UsiOk) => break,
-                _ => {}
+                Err(err) => return Err(err),
             }
         }
 
@@ -195,10 +204,17 @@ impl UsiEngineHandler {
 
         self.writer.send(&GuiCommand::IsReady)?;
         loop {
-            let output = reader.next_command()?;
-
-            if let Some(EngineCommand::ReadyOk) = output.response() {
-                break;
+            match reader.next_command() {
+                Ok(output) => {
+                    if let Some(EngineCommand::ReadyOk) = output.response() {
+                        break;
+                    }
+                }
+                Err(Error::IllegalSyntax) => {
+                    // Ignore lines that don't parse as valid USI commands
+                    continue;
+                }
+                Err(err) => return Err(err),
             }
         }
 
