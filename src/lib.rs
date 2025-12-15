@@ -93,7 +93,9 @@
 mod error;
 mod process;
 mod protocol;
+pub mod threaded;
 
 pub use self::error::*;
 pub use self::process::*;
 pub use self::protocol::*;
+pub use self::threaded::{EngineConfig, ThreadedEngine};

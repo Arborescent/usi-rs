@@ -99,6 +99,40 @@ handler.send_command_before_handshake(&GuiCommand::SetOption(
 let info = handler.get_info().unwrap();
 ```
 
+### Threaded Engine Wrapper
+
+For non-blocking engine communication, use `ThreadedEngine`. This spawns the engine in a background thread and provides channel-based messaging:
+
+```rust
+use usi::threaded::{ThreadedEngine, EngineConfig};
+use std::time::Duration;
+
+let config = EngineConfig {
+    path: "/path/to/engine".to_string(),
+    working_dir: Some("/path/to/working/dir".to_string()),
+    pre_handshake_options: vec![], // For Fairy-Stockfish: vec![("Protocol".into(), Some("usi".into()))]
+};
+
+let mut engine = ThreadedEngine::spawn(config).unwrap();
+
+// Configure engine options
+engine.set_option("Skill Level", Some("10"));
+engine.is_ready();
+
+// Set position and search
+engine.set_position("lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1");
+engine.go_byoyomi(Duration::from_secs(5));
+
+// Poll for move (non-blocking)
+loop {
+    if let Some(mv) = engine.poll_move() {
+        println!("Best move: {}", mv);
+        break;
+    }
+    std::thread::sleep(Duration::from_millis(100));
+}
+```
+
 ## Acknowledgements
 
 This library is a fork of [nozaq/usi-rs](https://github.com/nozaq/usi-rs). Thanks to nozaq for the original implementation.
