@@ -54,14 +54,23 @@ pub struct EngineConfig {
     pub pre_handshake_options: Vec<(String, Option<String>)>,
 }
 
-/// Commands sent to the engine thread
-#[derive(Debug)]
-enum ThreadCommand {
+/// Commands that can be sent to a threaded USI engine.
+///
+/// These represent the various operations supported by the USI protocol
+/// that can be sent asynchronously to the engine thread.
+#[derive(Debug, Clone)]
+pub enum EngineRequest {
+    /// Set an engine option (setoption name X value Y)
     SetOption { name: String, value: Option<String> },
+    /// Check if engine is ready (isready)
     IsReady,
+    /// Set the current position (position sfen X)
     Position { sfen: String },
+    /// Start a search with the given parameters (go ...)
     Go(ThinkParams),
+    /// Stop the current search (stop)
     Stop,
+    /// Quit the engine (quit)
     Quit,
 }
 
@@ -70,7 +79,7 @@ enum ThreadCommand {
 /// This spawns the engine in a background thread and uses channels for communication,
 /// allowing the caller to send commands and poll for moves without blocking.
 pub struct ThreadedEngine {
-    command_sender: Sender<ThreadCommand>,
+    command_sender: Sender<EngineRequest>,
     move_receiver: Arc<Mutex<Receiver<String>>>,
     engine_name: String,
 }
@@ -92,7 +101,7 @@ impl ThreadedEngine {
             )))?;
 
         // Create channels for communication
-        let (command_sender, command_receiver) = channel::<ThreadCommand>();
+        let (command_sender, command_receiver) = channel::<EngineRequest>();
         let (move_sender, move_receiver) = channel::<String>();
         let (name_sender, name_receiver) = channel::<String>();
         let move_receiver = Arc::new(Mutex::new(move_receiver));
@@ -130,14 +139,14 @@ impl ThreadedEngine {
 
     /// Set the current position using SFEN notation.
     pub fn set_position(&mut self, sfen: &str) {
-        let _ = self.command_sender.send(ThreadCommand::Position {
+        let _ = self.command_sender.send(EngineRequest::Position {
             sfen: sfen.to_string(),
         });
     }
 
     /// Start a search with the given parameters.
     pub fn go(&mut self, params: ThinkParams) {
-        let _ = self.command_sender.send(ThreadCommand::Go(params));
+        let _ = self.command_sender.send(EngineRequest::Go(params));
     }
 
     /// Start a search with byoyomi time control.
@@ -177,7 +186,7 @@ impl ThreadedEngine {
 
     /// Stop the current search.
     pub fn stop(&mut self) {
-        let _ = self.command_sender.send(ThreadCommand::Stop);
+        let _ = self.command_sender.send(EngineRequest::Stop);
     }
 
     /// Set an engine option.
@@ -185,7 +194,7 @@ impl ThreadedEngine {
     /// Sends a `setoption` command to the engine. Call `is_ready()` after
     /// setting options to ensure the engine has processed them.
     pub fn set_option(&mut self, name: &str, value: Option<&str>) {
-        let _ = self.command_sender.send(ThreadCommand::SetOption {
+        let _ = self.command_sender.send(EngineRequest::SetOption {
             name: name.to_string(),
             value: value.map(|v| v.to_string()),
         });
@@ -196,7 +205,7 @@ impl ThreadedEngine {
     /// Sends an `isready` command to ensure the engine has processed
     /// all previous commands.
     pub fn is_ready(&mut self) {
-        let _ = self.command_sender.send(ThreadCommand::IsReady);
+        let _ = self.command_sender.send(EngineRequest::IsReady);
     }
 
     /// Engine thread that manages the USI engine process
@@ -204,7 +213,7 @@ impl ThreadedEngine {
         engine_path: String,
         work_dir: PathBuf,
         pre_handshake_options: Vec<(String, Option<String>)>,
-        command_receiver: Receiver<ThreadCommand>,
+        command_receiver: Receiver<EngineRequest>,
         move_sender: Sender<String>,
         name_sender: Sender<String>,
     ) {
@@ -285,22 +294,22 @@ impl ThreadedEngine {
         // Process commands from the caller
         while let Ok(cmd) = command_receiver.recv() {
             match cmd {
-                ThreadCommand::SetOption { name, value } => {
+                EngineRequest::SetOption { name, value } => {
                     let _ = handler.send_command(&GuiCommand::SetOption(name, value));
                 }
-                ThreadCommand::IsReady => {
+                EngineRequest::IsReady => {
                     let _ = handler.send_command(&GuiCommand::IsReady);
                 }
-                ThreadCommand::Position { sfen } => {
+                EngineRequest::Position { sfen } => {
                     let _ = handler.send_command(&GuiCommand::Position(sfen));
                 }
-                ThreadCommand::Go(params) => {
+                EngineRequest::Go(params) => {
                     let _ = handler.send_command(&GuiCommand::Go(params));
                 }
-                ThreadCommand::Stop => {
+                EngineRequest::Stop => {
                     let _ = handler.send_command(&GuiCommand::Stop);
                 }
-                ThreadCommand::Quit => {
+                EngineRequest::Quit => {
                     let _ = handler.send_command(&GuiCommand::Quit);
                     break;
                 }
@@ -311,6 +320,6 @@ impl ThreadedEngine {
 
 impl Drop for ThreadedEngine {
     fn drop(&mut self) {
-        let _ = self.command_sender.send(ThreadCommand::Quit);
+        let _ = self.command_sender.send(EngineRequest::Quit);
     }
 }

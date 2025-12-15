@@ -98,4 +98,4 @@ pub mod threaded;
 pub use self::error::*;
 pub use self::process::*;
 pub use self::protocol::*;
-pub use self::threaded::{EngineConfig, ThreadedEngine};
+pub use self::threaded::{EngineConfig, EngineRequest, ThreadedEngine};
