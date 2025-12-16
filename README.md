@@ -47,7 +47,7 @@ UsiEngineHandler can be used to spawn the USI engine process. You can send GuiCo
 ```rust
 use usi::{BestMoveParams, Error, EngineCommand, GuiCommand, UsiEngineHandler};
 
-let mut handler = UsiEngineHandler::spawn("/path/to/usi_engine", "/path/to/working_dir").unwrap();
+let mut handler = UsiEngineHandler::spawn("/path/to/usi_engine", "/path/to/working_dir", &[] as &[&str]).unwrap();
 
 // Get the USI engine information.
 let info = handler.get_info().unwrap();
@@ -83,7 +83,7 @@ Some engines (like Fairy-Stockfish) require configuration before the USI handsha
 ```rust
 use usi::{GuiCommand, UsiEngineHandler};
 
-let mut handler = UsiEngineHandler::spawn("/path/to/fairy-stockfish", ".").unwrap();
+let mut handler = UsiEngineHandler::spawn("/path/to/fairy-stockfish", ".", &[] as &[&str]).unwrap();
 
 // Configure before handshake (required for Fairy-Stockfish)
 handler.send_command_before_handshake(&GuiCommand::SetOption(
@@ -109,6 +109,7 @@ use std::time::Duration;
 
 let config = EngineConfig {
     path: "/path/to/engine".to_string(),
+    args: vec![], // Command-line arguments for the engine
     working_dir: Some("/path/to/working/dir".to_string()),
     pre_handshake_options: vec![], // For Fairy-Stockfish: vec![("Protocol".into(), Some("usi".into()))]
 };

@@ -35,7 +35,7 @@ impl EngineInfo {
 /// ```no_run
 /// use usi::{BestMoveParams, Error, EngineCommand, GuiCommand, UsiEngineHandler};
 ///
-/// let mut handler = UsiEngineHandler::spawn("/path/to/usi_engine", "/path/to/working_dir").unwrap();
+/// let mut handler = UsiEngineHandler::spawn("/path/to/usi_engine", "/path/to/working_dir", &[] as &[&str]).unwrap();
 ///
 /// // Get the USI engine information.
 /// let info = handler.get_info().unwrap();
@@ -78,11 +78,15 @@ impl Drop for UsiEngineHandler {
 }
 impl UsiEngineHandler {
     /// Spanws a new process of the specific USI engine.
-    pub fn spawn<P: AsRef<OsStr>, Q: AsRef<Path>>(
-        engine_path: P,
-        working_dir: Q,
-    ) -> Result<Self, Error> {
+    pub fn spawn<P, Q, I, S>(engine_path: P, working_dir: Q, args: I) -> Result<Self, Error>
+    where
+        P: AsRef<OsStr>,
+        Q: AsRef<Path>,
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
         let mut process = Command::new(engine_path)
+            .args(args)
             .current_dir(working_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -110,7 +114,7 @@ impl UsiEngineHandler {
     /// ```no_run
     /// use usi::{GuiCommand, UsiEngineHandler};
     ///
-    /// let mut handler = UsiEngineHandler::spawn("/path/to/fairy-stockfish", ".").unwrap();
+    /// let mut handler = UsiEngineHandler::spawn("/path/to/fairy-stockfish", ".", &[] as &[&str]).unwrap();
     ///
     /// // Configure engine BEFORE handshake
     /// handler.send_command_before_handshake(&GuiCommand::SetOption(

@@ -11,6 +11,7 @@
 //!
 //! let config = EngineConfig {
 //!     path: "/path/to/engine".to_string(),
+//!     args: vec![],
 //!     working_dir: Some("/path/to/working/dir".to_string()),
 //!     pre_handshake_options: vec![],
 //! };
@@ -44,10 +45,12 @@ use crate::protocol::*;
 use crate::process::UsiEngineHandler;
 
 /// Configuration for spawning a threaded USI engine
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct EngineConfig {
     /// Path to the engine executable
     pub path: String,
+    /// Arguments to pass to the engine executable
+    pub args: Vec<String>,
     /// Working directory for the engine (defaults to engine's parent directory)
     pub working_dir: Option<String>,
     /// Options to send before the USI handshake (for engines like Fairy-Stockfish)
@@ -107,11 +110,13 @@ impl ThreadedEngine {
         let move_receiver = Arc::new(Mutex::new(move_receiver));
 
         let engine_path = config.path.clone();
+        let engine_args = config.args.clone();
         let pre_handshake_options = config.pre_handshake_options.clone();
 
         thread::spawn(move || {
             Self::engine_thread(
                 engine_path,
+                engine_args,
                 work_dir,
                 pre_handshake_options,
                 command_receiver,
@@ -211,6 +216,7 @@ impl ThreadedEngine {
     /// Engine thread that manages the USI engine process
     fn engine_thread(
         engine_path: String,
+        engine_args: Vec<String>,
         work_dir: PathBuf,
         pre_handshake_options: Vec<(String, Option<String>)>,
         command_receiver: Receiver<EngineRequest>,
@@ -218,7 +224,7 @@ impl ThreadedEngine {
         name_sender: Sender<String>,
     ) {
         // Spawn the engine process
-        let mut handler = match UsiEngineHandler::spawn(&engine_path, &work_dir) {
+        let mut handler = match UsiEngineHandler::spawn(&engine_path, &work_dir, &engine_args) {
             Ok(h) => h,
             Err(_) => {
                 let _ = name_sender.send("Engine Failed".to_string());
