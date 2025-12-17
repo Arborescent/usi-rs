@@ -250,6 +250,10 @@ impl UsiEngineHandler {
             loop {
                 match reader.next_command() {
                     Ok(output) => {
+                        // EOF reached (engine closed) - exit the loop
+                        if output.response().is_none() {
+                            return Ok(());
+                        }
                         if let Err(e) = hook(&output) {
                             return Err(Error::HandlerError(Box::new(e)));
                         }
